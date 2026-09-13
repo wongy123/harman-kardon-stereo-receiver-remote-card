@@ -10,10 +10,16 @@ Add as custom repository (plugin category): `wongy123/harman-kardon-stereo-recei
 
 ## Manual install
 
-Copy `card/harman-remote.js` to `/config/www/`, register as Lovelace resource (`/local/harman-remote.js`), then use:
+Copy `dist/harman-kardon-stereo-receiver-remote-card.js` to `/config/www/`, register as Lovelace resource (`/local/harman-kardon-stereo-receiver-remote-card.js`), then use:
 ```yaml
-type: custom:harman-remote-card
-title: "HK 3770 Remote"
+type: custom:hk37xx-remote-card
+```
+
+**Or via HACS `/hacsfiles/` (no manual copy needed):**
+```yaml
+resources:
+  - url: /hacsfiles/harman-kardon-stereo-receiver-remote-card/dist/harman-kardon-stereo-receiver-remote-card.js
+    type: module
 ```
 
 ## Features
