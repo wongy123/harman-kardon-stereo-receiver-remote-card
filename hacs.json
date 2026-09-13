@@ -1,6 +1,6 @@
 {
   "name": "Harman Kardon HK 3700/3770 Remote Card",
-  "filename": "harman-kardon-stereo-receiver-remote-card",
+  "filename": "harman-kardon-stereo-receiver-remote-card.js",
   "homeassistant": "2024.8.0",
   "render_readme": true
 }
