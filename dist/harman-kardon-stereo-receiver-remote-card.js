@@ -12,12 +12,14 @@ class HK37xxRemoteCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    this._entry = hass.config_entries?.find(e => e.domain === 'hk37xx');
-    if (!this._entry) {
-      this.innerHTML = `<ha-card header="HK 37xx" style="font-family:sans-serif;background:#1a1a2e;color:#eee;padding:16px;"><div style="color:#999">No hk37xx integration found</div></ha-card>`;
+    const userEntity = this.config?.entity;
+    this._entry = userEntity ? null : (hass.config_entries?.find(e => e.domain === 'hk37xx') || null);
+    const entityId = userEntity || (this._entry ? `media_player.${(this._entry.title || 'hk_3770').toLowerCase().replace(/\s+/g, '_')}` : null);
+    if (!entityId) {
+      this.innerHTML = `<ha-card header="${this.config?.title || 'HK 37xx'}" style="font-family:sans-serif;background:#1a1a2e;color:#eee;padding:16px;"><div style="color:#999">No <code>entity</code> configured and no <code>hk37xx</code> integration found.</div></ha-card>`;
       return;
     }
-    const prefix = this._entry.title ? this._entry.title.toLowerCase().replace(/\s+/g, '_') : 'hk_3770';
+    const prefix = userEntity ? entityId.replace('media_player.', '') : ((this._entry ? this._entry.title.toLowerCase().replace(/\s+/g, '_') : 'hk_3770'));
     this._entities = {
       media: `media_player.${prefix}`,
       volume_up: `button.${prefix}_volume_up`,
@@ -53,7 +55,7 @@ class HK37xxRemoteCard extends HTMLElement {
   }
 
   handleAction(action, value) {
-    if (!this._hass || !this._entry || !this._entities) return;
+    if (!this._hass || !this._entities) return;
     const ent = this._entities;
     const press = (e) => this._hass.callService('button', 'press', { entity_id: e });
     switch (action) {
@@ -72,7 +74,7 @@ class HK37xxRemoteCard extends HTMLElement {
       }
       case 'tuner_mem': return press(ent.mem);
       case 'auto_preset': return press(ent.auto_preset);
-      case 'clear_entry': return; // no-op: no clear entity defined
+      case 'clear_entry': return; // no-op
       case 'rds': return press(ent.rds);
       case 'speaker_a': return press(ent.speaker_a);
       case 'speaker_b': return press(ent.speaker_b);
@@ -90,7 +92,7 @@ class HK37xxRemoteCard extends HTMLElement {
   }
 
   render() {
-    if (!this._entry || !this._entities || !this._hass) return;
+    if (!this._entities || !this._hass) return;
     const ent = this._entities;
     const states = {};
     const attrs = {};
@@ -100,9 +102,10 @@ class HK37xxRemoteCard extends HTMLElement {
     }
     const isOn = states.media === 'on' || this._hass.states[ent.media]?.state === 'on';
     const src = attrs.source?.current_source || attrs.source?.source || 'Unknown';
+    const title = this.config?.title || (this._entry ? this._entry.title : 'Harman Kardon HK 37xx');
 
     this.innerHTML = `
-      <ha-card header="${this._entry.title || 'Harman Kardon HK 37xx'}" style="font-family:sans-serif;background:#1a1a2e;color:#eee;">
+      <ha-card header="${title}" style="font-family:sans-serif;background:#1a1a2e;color:#eee;">
         <style>
           .hk37xx-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:12px; }
           .hk37xx-row { grid-column:span 2; }
@@ -167,7 +170,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'hk37xx-remote-card',
   name: 'Harman Kardon Remote',
-  description: 'Touch-friendly remote control for the Harman Kardon HK 3700 / 3770 receiver (requires hk37xx integration).',
+  description: 'Touch-friendly remote control for the Harman Kardon HK 3700 / 3770 receiver.',
   preview: false,
   documentationUrl: 'https://github.com/wongy123/harman-kardon-stereo-receiver-remote-card',
 });
