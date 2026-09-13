@@ -1,4 +1,8 @@
 class HK37xxRemoteCard extends HTMLElement {
+  static getStubConfig() {
+    return {};
+  }
+
   set hass(hass) {
     const entry = hass.config_entries?.find(e => e.domain === 'hk37xx');
     if (!entry) { this.innerHTML = '<div style="padding:16px;color:#999">No hk37xx integration found</div>'; return; }
@@ -29,8 +33,7 @@ class HK37xxRemoteCard extends HTMLElement {
     const states = Object.fromEntries(Object.entries(entities).map(([k, e]) => [k, hass.states[e]?.state || 'unknown']));
     const attrs = Object.fromEntries(Object.entries(entities).map(([k, e]) => [k, hass.states[e]?.attributes || {}]));
 
-    const playerState = attrs.media;
-    const isOn = playerState.state === 'on' || states.media === 'on';
+    const isOn = hass.states[entities.media]?.state === 'on';
 
     this.innerHTML = `
       <ha-card header="${entry.title || 'Harman Kardon HK 37xx'}" style="font-family:sans-serif;background:#1a1a2e;color:#eee;">
@@ -93,3 +96,12 @@ class HK37xxRemoteCard extends HTMLElement {
   }
 }
 customElements.define('hk37xx-remote-card', HK37xxRemoteCard);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'hk37xx-remote-card',
+  name: 'Harman Kardon Remote',
+  description: 'Touch-friendly remote control for the Harman Kardon HK 3700 / 3770 receiver (requires the hk37xx integration).',
+  preview: false,
+  documentationUrl: 'https://github.com/wongy123/harman-kardon-stereo-receiver-remote-card',
+});
