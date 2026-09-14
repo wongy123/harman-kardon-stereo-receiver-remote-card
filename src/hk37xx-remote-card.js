@@ -4,27 +4,26 @@ import './hk37xx-remote-card-editor.js';
 const CARD_TAG = 'hk37xx-remote-card';
 const EDITOR_TAG = 'hk37xx-remote-card-editor';
 const DOMAIN = 'hk37xx';
-
 const BUTTON_KEYS = [
-  'volume_up', 'volume_down', 'nav_up', 'nav_down', 'nav_exit',
-  'tune_up', 'tune_down', 'tuner_direct', 'tuner_mem', 'dim_display',
-  'menu', 'rds', 'speaker_a', 'speaker_b', 'harman_volume', 'auto_preset',
-  'tone', 'assign_analog', 'assign_digital',
+  'volume_up', 'volume_down', 'assign_analog', 'assign_digital',
+  'nav_up', 'nav_down', 'nav_exit', 'tune_up', 'tune_down',
+  'tuner_direct', 'tuner_mem', 'dim_display', 'menu', 'rds',
+  'speaker_a', 'speaker_b', 'harman_volume', 'auto_preset', 'tone',
 ];
-
-function entityKey(entity) {
-  const uniqueId = entity?.unique_id || '';
-  const entityId = entity?.entity_id || '';
-  for (const key of ['tuner_frequency', 'volume_up', 'volume_down', ...BUTTON_KEYS, 'player', 'source']) {
-    if (uniqueId.endsWith(`_${key}`) || entityId.endsWith(`_${key}`)) return key;
-  }
-  return undefined;
-}
 
 function deviceIsHK37xx(device) {
   return Array.from(device?.identifiers || []).some((identifier) => (
     Array.isArray(identifier) && identifier[0] === DOMAIN
   ));
+}
+
+function entityKey(entity) {
+  const uniqueId = entity?.unique_id || '';
+  const entityId = entity?.entity_id || '';
+  for (const key of ['tuner_frequency', ...BUTTON_KEYS, 'player', 'source']) {
+    if (uniqueId.endsWith(`_${key}`) || entityId.endsWith(`_${key}`)) return key;
+  }
+  return undefined;
 }
 
 function entitiesForDevice(hass, deviceId) {
@@ -63,8 +62,7 @@ class HK37xxRemoteCard extends LitElement {
   }
 
   _call(domain, service, data) {
-    if (!this.hass) return;
-    this.hass.callService(domain, service, data);
+    if (this.hass) this.hass.callService(domain, service, data);
   }
 
   _press(key) {
@@ -98,6 +96,15 @@ class HK37xxRemoteCard extends LitElement {
     return source?.attributes?.options || ['FM', 'AM', 'Analog', 'Digital', 'USB', 'CD', 'Phono', 'Bluetooth', 'vTuner', 'Home Network', 'Cable Sat', 'STB', 'TV'];
   }
 
+  _button(key, label, title = label, fallbackIcon) {
+    const entityId = this._entities[key];
+    if (!entityId) return html``;
+    const icon = this.hass?.states?.[entityId]?.attributes?.icon || fallbackIcon;
+    return html`<button class="control icon-button" title=${title} @click=${() => this._press(key)}>
+      ${icon ? html`<ha-icon icon=${icon}></ha-icon>` : html``}<span>${label}</span>
+    </button>`;
+  }
+
   render() {
     if (!this.hass || !this.config?.device) {
       return html`<ha-card header="Harman Kardon Remote"><div class="message">Select a receiver device in the card configuration.</div></ha-card>`;
@@ -107,131 +114,146 @@ class HK37xxRemoteCard extends LitElement {
     const player = this.hass.states[entities.player];
     const source = this.hass.states[entities.source];
     const frequency = this.hass.states[entities.tuner_frequency];
-    const available = Boolean(player);
-    const powered = player?.state === 'on';
-    const currentSource = source?.state || source?.attributes?.current_option || 'FM';
-    const options = this._sources();
     const device = this.hass.devices?.[this.config.device];
     const title = this.config.title || device?.name || 'Harman Kardon';
+    const options = this._sources();
+    const currentSource = source?.state || options[0] || '';
+    const receiverAvailable = Boolean(player) && !['off', 'unavailable', 'unknown'].includes(player.state);
+    const powered = receiverAvailable;
 
     return html`
       <ha-card>
-        <div class="remote" aria-label="${title} remote control">
-          <div class="remote-top">
-            <div class="brand">HARMAN<span>/</span>KARDON</div>
-            <button class="power" title="Turn receiver off" aria-label="Turn receiver off" @click=${() => this._media('turn_off')} ?disabled=${!powered}>⏻</button>
-          </div>
+        <div class="card">
+          <header>
+            <div>
+              <h2>${title}</h2>
+              <p class="status">${receiverAvailable ? 'On' : player ? 'Standby / unavailable' : 'Device entity unavailable'}</p>
+            </div>
+            <button class="power" ?disabled=${!powered} title="Turn receiver off" @click=${() => this._media('turn_off')}>⏻</button>
+          </header>
 
-          <div class="lcd" aria-live="polite">
-            <div class="lcd-source">${currentSource}</div>
-            <div class="lcd-value">${frequency?.state && frequency.state !== 'unknown' ? `${frequency.state} MHz` : powered ? 'ON' : 'STANDBY'}</div>
-            <div class="lcd-status">${available ? (powered ? 'NETWORK READY' : 'STANDBY') : 'DEVICE UNAVAILABLE'}</div>
-          </div>
-
-          <div class="source-row">
-            ${['FM', 'AM', 'CD', 'USB', 'BT', 'TV'].map((label) => html`
-              <button class="key source-key ${currentSource === (label === 'BT' ? 'Bluetooth' : label) ? 'selected' : ''}" @click=${() => this._selectNamedSource(label)}>${label}</button>
-            `)}
-          </div>
-
-          <div class="control-row">
-            <button class="key wide" @click=${() => this._media('volume_down')}>VOL −</button>
-            <button class="key wide" @click=${() => this._toggleMute()}>MUTE</button>
-            <button class="key wide" @click=${() => this._media('volume_up')}>VOL +</button>
-          </div>
-
-          <div class="source-select-row">
-            <label for="hk-source">SOURCE</label>
-            <select id="hk-source" .value=${currentSource} @change=${(event) => this._selectSource(event)}>
+          <section>
+            <h3>Source</h3>
+            <select .value=${currentSource} @change=${this._selectSource} aria-label="Receiver source">
               ${options.map((option) => html`<option value=${option}>${option}</option>`)}
             </select>
-          </div>
+            ${(entities.assign_analog || entities.assign_digital) ? html`
+              <div class="grid two">
+                ${this._button('assign_analog', 'Analog', 'Cycle the analog RCA input assignment', 'mdi:audio-input-rca')}
+                ${this._button('assign_digital', 'Digital', 'Cycle the digital coaxial or TOSLINK input assignment', 'mdi:toslink')}
+              </div>
+            ` : html``}
+          </section>
 
-          <div class="section-label">TUNER</div>
-          <div class="tuner-display">
-            <input type="number" min="87.5" max="108" step="0.1" .value=${frequency?.state !== 'unknown' ? frequency?.state || '' : ''} placeholder="87.5–108.0" @change=${(event) => this._setFrequency(event)} />
-            <span>MHz</span>
-          </div>
-          <div class="tuner-row">
-            <button class="key" @click=${() => this._press('tune_down')}>TUNE −</button>
-            <button class="key accent" @click=${() => this._press('tuner_direct')}>DIRECT</button>
-            <button class="key" @click=${() => this._press('tune_up')}>TUNE +</button>
-          </div>
-          <div class="tuner-row compact">
-            <button class="key" @click=${() => this._press('tuner_mem')}>MEM</button>
-            <button class="key" @click=${() => this._press('auto_preset')}>AUTO</button>
-            <button class="key" @click=${() => this._press('rds')}>RDS</button>
-          </div>
+          <section>
+            <h3>Volume</h3>
+            <div class="grid three">
+              <button class="control large icon-button" aria-label="Volume down" @click=${() => this._media('volume_down')}>
+                <ha-icon icon="mdi:volume-minus"></ha-icon><span>Volume down</span>
+              </button>
+              <button class="control large icon-button" aria-label=${player?.attributes?.is_volume_muted ? 'Unmute' : 'Mute'} @click=${() => this._toggleMute()}>
+                <ha-icon icon=${player?.attributes?.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-mute'}></ha-icon><span>${player?.attributes?.is_volume_muted ? 'Unmute' : 'Mute'}</span>
+              </button>
+              <button class="control large icon-button" aria-label="Volume up" @click=${() => this._media('volume_up')}>
+                <ha-icon icon="mdi:volume-plus"></ha-icon><span>Volume up</span>
+              </button>
+            </div>
+          </section>
 
-          <div class="section-label">NAVIGATION</div>
-          <div class="navigation">
-            <button class="key nav-up" @click=${() => this._press('nav_up')}>▲</button>
-            <button class="key nav-left" @click=${() => this._press('nav_exit')}>◀</button>
-            <button class="nav-ok" @click=${() => this._press('menu')}>MENU</button>
-            <button class="key nav-right" @click=${() => this._press('menu')}>▶</button>
-            <button class="key nav-down" @click=${() => this._press('nav_down')}>▼</button>
-          </div>
+          ${(entities.tune_down || entities.tune_up) ? html`
+            <section>
+              <h3>Channel / Tuner</h3>
+              <div class="grid two">
+                ${this._button('tune_down', 'Channel / tuner −', 'Tune down', 'mdi:access-point-minus')}
+                ${this._button('tune_up', 'Channel / tuner +', 'Tune up', 'mdi:access-point-plus')}
+              </div>
+            </section>
+          ` : html``}
 
-          <div class="bottom-row">
-            <button class="key" @click=${() => this._press('speaker_a')}>SPEAKER A</button>
-            <button class="key" @click=${() => this._press('speaker_b')}>SPEAKER B</button>
-            <button class="key" @click=${() => this._press('harman_volume')}>VOL EQ</button>
-            <button class="key" @click=${() => this._press('tone')}>TONE</button>
-            <button class="key" @click=${() => this._press('dim_display')}>DIM</button>
-          </div>
+          <section>
+            <h3>Tuner</h3>
+            <div class="frequency">
+              <input type="number" min="87.5" max="108" step="0.1" .value=${frequency?.state !== 'unknown' ? frequency?.state || '' : ''} placeholder="87.5–108.0" aria-label="FM frequency in MHz" @change=${this._setFrequency} />
+              <span>MHz</span>
+            </div>
+            <div class="grid three">
+              ${this._button('tuner_direct', 'Direct', 'Tune to a frequency', 'mdi:tune')}
+              ${this._button('tuner_mem', 'Memory', 'Tuner memory', 'mdi:content-save')}
+              ${this._button('rds', 'RDS', 'Radio data system', 'mdi:radio-tower')}
+            </div>
+            <div class="grid two compact">
+              ${this._button('auto_preset', 'Auto preset', 'Scan and save presets', 'mdi:auto-fix')}
+              ${this._button('dim_display', 'Dim display', 'Dim receiver display', 'mdi:brightness-6')}
+            </div>
+          </section>
+
+          <section>
+            <h3>Menu</h3>
+            <div class="grid four">
+              ${this._button('nav_up', 'Up', 'Menu up', 'mdi:menu-up')}
+              ${this._button('menu', 'Menu', 'Open menu', 'mdi:menu')}
+              ${this._button('nav_down', 'Down', 'Menu down', 'mdi:menu-down')}
+              ${this._button('nav_exit', 'Exit', 'Exit menu', 'mdi:arrow-left')}
+            </div>
+          </section>
+
+          <section>
+            <h3>Receiver</h3>
+            <div class="grid four">
+              ${this._button('speaker_a', 'Speaker A', 'Toggle speaker A', 'mdi:speaker')}
+              ${this._button('speaker_b', 'Speaker B', 'Toggle speaker B', 'mdi:speaker-multiple')}
+              ${this._button('harman_volume', 'Harman Volume', 'Toggle Harman volume mode', 'mdi:volume-equal')}
+              ${this._button('tone', 'Tone Control', 'Open tone controls', 'mdi:equalizer')}
+            </div>
+          </section>
+
+          ${entities.player ? html`
+            <section>
+              <h3>Playback</h3>
+              <div class="grid four">
+                <button class="control icon-button" aria-label="Previous track" title="Previous track" @click=${() => this._media('previous_track')}><ha-icon icon="mdi:skip-previous"></ha-icon><span>Previous</span></button>
+                <button class="control icon-button" aria-label="Stop" title="Stop" @click=${() => this._media('stop')}><ha-icon icon="mdi:stop"></ha-icon><span>Stop</span></button>
+                <button class="control icon-button" aria-label=${player.state === 'playing' ? 'Pause' : 'Play'} title=${player.state === 'playing' ? 'Pause' : 'Play'} @click=${() => this._media(player.state === 'playing' ? 'pause' : 'play')}><ha-icon icon=${player.state === 'playing' ? 'mdi:pause' : 'mdi:play'}></ha-icon><span>${player.state === 'playing' ? 'Pause' : 'Play'}</span></button>
+                <button class="control icon-button" aria-label="Next track" title="Next track" @click=${() => this._media('next_track')}><ha-icon icon="mdi:skip-next"></ha-icon><span>Next</span></button>
+              </div>
+            </section>
+          ` : html``}
         </div>
       </ha-card>
     `;
   }
 
-  _selectNamedSource(label) {
-    const names = { BT: 'Bluetooth' };
-    const option = names[label] || label;
-    const source = this._sources().find((candidate) => candidate.toLowerCase() === option.toLowerCase());
-    if (source) this._call('select', 'select_option', { entity_id: this._entities.source, option: source });
-  }
-
   static styles = css`
     :host { display: block; }
-    ha-card { overflow: hidden; background: transparent; box-shadow: none; }
-    .remote { box-sizing: border-box; max-width: 360px; margin: 0 auto; padding: 18px 16px 22px; border: 1px solid #3f4248; border-radius: 32px; background: linear-gradient(155deg, #292c31 0%, #17191c 45%, #0c0d0f 100%); box-shadow: inset 0 1px 1px #62666d, inset 0 -3px 8px #050505, 0 8px 18px #0008; color: #d5d7da; }
-    .remote-top { display: flex; align-items: center; justify-content: space-between; padding: 0 8px 14px; }
-    .brand { color: #b9bdc1; font-family: Arial, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .18em; }
-    .brand span { color: #81868d; padding: 0 2px; }
-    button { font: inherit; }
-    .power { width: 34px; height: 34px; border: 1px solid #5d636b; border-radius: 50%; background: #202328; color: #d95b55; font-size: 20px; line-height: 1; cursor: pointer; box-shadow: inset 0 1px 2px #000, 0 1px 2px #000; }
-    .power:disabled { color: #696d72; opacity: .55; cursor: default; }
-    .lcd { margin: 0 8px 15px; padding: 10px 13px 8px; border: 2px solid #050606; border-radius: 5px; background: linear-gradient(#34413a, #202a25); box-shadow: inset 0 0 10px #050806; color: #a9d6a0; font-family: 'Courier New', monospace; text-align: right; text-shadow: 0 0 4px #9bd79a; }
-    .lcd-source { min-height: 16px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
-    .lcd-value { min-height: 28px; font-size: 21px; font-weight: 700; letter-spacing: .08em; }
-    .lcd-status { color: #759a76; font-size: 8px; letter-spacing: .13em; }
-    .source-row, .control-row, .tuner-row, .bottom-row { display: grid; gap: 7px; }
-    .source-row { grid-template-columns: repeat(6, 1fr); }
-    .control-row { grid-template-columns: repeat(3, 1fr); margin: 12px 0; }
-    .key { min-height: 34px; padding: 6px 4px; border: 1px solid #484d54; border-radius: 6px; background: linear-gradient(#3c4046, #24272b); color: #d2d4d6; box-shadow: inset 0 1px 1px #74787d55, 0 2px 2px #0008; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-shadow: 0 1px 1px #000; }
-    .key:hover { background: linear-gradient(#50555c, #2e3237); }
-    .key:active, .key.selected { border-color: #9caa8d; background: linear-gradient(#67725e, #414b3d); color: #f2f6e8; }
-    .key:focus-visible, .power:focus-visible, .nav-ok:focus-visible { outline: 2px solid #a8c7ff; outline-offset: 2px; }
-    .source-key { min-height: 29px; font-size: 9px; }
-    .wide { min-height: 39px; }
-    .source-select-row { display: grid; grid-template-columns: 55px 1fr; align-items: center; gap: 9px; margin: 4px 0 14px; color: #858b92; font-size: 9px; font-weight: 700; letter-spacing: .1em; }
-    select, input { box-sizing: border-box; width: 100%; border: 1px solid #4e545b; border-radius: 5px; background: #17191b; color: #d7dbd5; padding: 7px 8px; font: 12px 'Courier New', monospace; }
-    .section-label { margin: 11px 3px 6px; color: #747a81; font-size: 9px; font-weight: 700; letter-spacing: .2em; }
-    .tuner-display { display: grid; grid-template-columns: 1fr 34px; align-items: center; gap: 7px; margin-bottom: 7px; }
-    .tuner-display span { color: #8d949a; font: 10px 'Courier New', monospace; }
-    .tuner-row { grid-template-columns: repeat(3, 1fr); }
-    .tuner-row.compact { margin-top: 7px; }
-    .accent { border-color: #a49b68; color: #e7d98a; }
-    .navigation { display: grid; grid-template: repeat(3, 38px) / repeat(3, 1fr); gap: 5px; max-width: 170px; margin: 0 auto 12px; }
-    .navigation .key { border-radius: 50%; min-height: 0; padding: 0; }
-    .nav-up { grid-area: 1 / 2; }
-    .nav-left { grid-area: 2 / 1; }
-    .nav-ok { grid-area: 2 / 2; border: 1px solid #646970; border-radius: 50%; background: #131518; color: #d2d5d8; font-size: 9px; cursor: pointer; box-shadow: inset 0 1px 2px #000, 0 2px 2px #0008; }
-    .nav-right { grid-area: 2 / 3; }
-    .nav-down { grid-area: 3 / 2; }
-    .bottom-row { grid-template-columns: repeat(5, 1fr); }
-    .bottom-row .key { min-height: 31px; font-size: 8px; }
+    ha-card { overflow: hidden; }
+    .card { display: grid; gap: 18px; padding: 18px; color: var(--primary-text-color, #f5f5f5); }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .icon-button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+    .icon-button ha-icon { --mdc-icon-size: 24px; }
+    .icon-button span { line-height: 1.15; text-align: center; }
+    h3 { margin-bottom: 9px; color: var(--secondary-text-color, #aeb4bd); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .status { margin-top: 4px; color: var(--secondary-text-color, #aeb4bd); font-size: .85rem; }
+    .power { width: 52px; height: 52px; border: 0; border-radius: 50%; background: var(--primary-color, #03a9f4); color: var(--text-primary-color, #fff); font-size: 24px; cursor: pointer; }
+    .power:disabled { background: var(--disabled-color, #777); opacity: .45; cursor: not-allowed; }
+    .grid { display: grid; gap: 10px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .compact { margin-top: 10px; }
+    .control, select, input { box-sizing: border-box; min-height: 52px; width: 100%; border: 1px solid var(--divider-color, #59616b); border-radius: 12px; background: var(--secondary-background-color, #30343a); color: var(--primary-text-color, #f5f5f5); font: inherit; }
+    .control:hover { border-color: var(--primary-color, #03a9f4); }
+    .control:active { transform: translateY(1px); }
+    .large { min-height: 60px; }
+    select, input { padding: 0 13px; }
+    .frequency { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 9px; margin-bottom: 10px; }
+    .frequency span { color: var(--secondary-text-color); font-size: .9rem; }
     .message { padding: 18px; color: var(--secondary-text-color); }
+    @media (max-width: 420px) {
+      .card { padding: 14px; }
+      .grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
   `;
 }
 
@@ -240,7 +262,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: CARD_TAG,
   name: 'Harman Kardon HK 3700/3770 Remote',
-  description: 'A remote-shaped control for a Harman Kardon HK 3700/3770 receiver.',
+  description: 'A simple, touch-friendly receiver control card configured by device.',
   preview: false,
   documentationUrl: 'https://github.com/wongy123/harman-kardon-stereo-receiver-remote-card',
 });

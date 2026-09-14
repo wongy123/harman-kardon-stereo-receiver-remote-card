@@ -25,15 +25,14 @@ The device owns the media player, source selector, tuner frequency number, and I
 
 ## Controls
 
-The layout follows the physical remote's groups:
+The card is intentionally touch-first rather than a visual replica of the plastic remote:
 
-- LCD-style source, frequency, and receiver status display
-- Power off, volume, mute, and source keys
-- FM frequency entry, tuning, direct, memory, auto-preset, and RDS
-- Circular menu navigation
-- Speaker A/B, Harman Volume, tone, and display dimming
-
-The receiver cannot be powered on through the network when in standby; the integration marks it unavailable in that state. The card therefore exposes the supported power-off action and reports standby accurately.
+- One source selector containing every source exposed by the integration
+- Analog and Digital assignment controls only when the selected device exposes them
+- Large volume, mute, and power controls
+- FM frequency entry, tune up/down, direct, memory, auto-preset, and RDS
+- Menu, up, down, and exit controls; unsupported left/right/OK commands are not shown
+- Speaker A/B, Harman Volume, Tone Control, display dimming, and supported playback controls
 
 ## Manual resource installation
 
