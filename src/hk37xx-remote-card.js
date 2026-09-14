@@ -153,15 +153,11 @@ class HK37xxRemoteCard extends LitElement {
           <section>
             <h3>Volume</h3>
             <div class="grid three">
-              <button class="control large icon-button" aria-label="Volume down" @click=${() => this._media('volume_down')}>
-                <ha-icon icon="mdi:volume-minus"></ha-icon><span>Volume down</span>
-              </button>
+              ${this._button('volume_down', 'Volume down', 'IR volume down', 'mdi:volume-minus')}
               <button class="control large icon-button" aria-label=${player?.attributes?.is_volume_muted ? 'Unmute' : 'Mute'} @click=${() => this._toggleMute()}>
                 <ha-icon icon=${player?.attributes?.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-mute'}></ha-icon><span>${player?.attributes?.is_volume_muted ? 'Unmute' : 'Mute'}</span>
               </button>
-              <button class="control large icon-button" aria-label="Volume up" @click=${() => this._media('volume_up')}>
-                <ha-icon icon="mdi:volume-plus"></ha-icon><span>Volume up</span>
-              </button>
+              ${this._button('volume_up', 'Volume up', 'IR volume up', 'mdi:volume-plus')}
             </div>
           </section>
 
