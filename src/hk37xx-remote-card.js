@@ -20,8 +20,13 @@ function deviceIsHK37xx(device) {
 function entityKey(entity) {
   const uniqueId = entity?.unique_id || '';
   const entityId = entity?.entity_id || '';
+  const translationKey = entity?.translation_key || '';
   for (const key of ['tuner_frequency', ...BUTTON_KEYS, 'player', 'source']) {
-    if (uniqueId.endsWith(`_${key}`) || entityId.endsWith(`_${key}`)) return key;
+    if (
+      translationKey === key
+      || uniqueId.endsWith(`_${key}`)
+      || entityId.endsWith(`_${key}`)
+    ) return key;
   }
   return undefined;
 }
